@@ -69,32 +69,47 @@ def make_webhook_result(req):
     }
 
 
+def normalize_word(word):
+    word = word.lower()
+    word = word.replace('/', '_')
+    word = word.replace(' ', '_')
+    word = urllib.quote(word)
+    return word
+
+
 def process_action(action, params):
     """Processes an action with the parameters dictionary, and returns
     the speech reply to be spoken to the user."""
     if action == 'define_word':
         word = params.get('word')
-        definition = get_word_definition(word)
-        if definition is None:
+        if word is None:
+            return 'I do not know this word'
+        word_id = normalize_word(word)
+        word_model = ndb.Key('Word', word_id).get()
+        if word_model is not None:
+            word_model.times_defined += 1
+            word_model.put()
+            return '%s, %s' % (word, word_model.definition)
+        
+        word_model = Word()
+        word_model.leaned = False
+        word_model.key = ndb.Key('Word', word_id)
+        if not get_word_definition(word_model):
             return 'I do not know this word'
         else:
-            return definition
+            word_model.times_defined = 1
+            word_model.put()
+            return '%s, %s' % (word, word_model.definition)
     
     return 'I did not get that'
 
 
-def get_word_definition(word):
+def get_word_definition(word_model):
     """Looks up word in the external dictionary and returns its definition.
-    Returns None if the word is not found, or other errors.
+    Returns False if the word is not found, or other errors.
     """
-    if not word:
-        return None
-    word = word.lower()
-    word_enc = word.replace('/', '_')
-    word_enc = word_enc.replace(' ', '_')
-    word_enc = urllib.quote(word_enc)
-    
-    req = urllib2.Request(app.wordlist_config.oxford_url_pattern % word_enc)
+    word_id = word_model.key.string_id()
+    req = urllib2.Request(app.wordlist_config.oxford_url_pattern % word_id)
     req.add_header('app_id', app.wordlist_config.oxford_app_id)
     req.add_header('app_key', app.wordlist_config.oxford_app_key)
 
@@ -103,27 +118,24 @@ def get_word_definition(word):
     except urllib2.HTTPError as e:
         print('Oxford dictionary returned with error code %s' % e.code,
               file=sys.stderr)
-        return None
+        return False
     
     res_json = json.load(res)
     try:
-        definition = res_json['results'][0]['lexicalEntries'][0]['entries'][0]['senses'][0]['definitions'][0]
+        word_model.definition = \
+            res_json['results'][0]['lexicalEntries'][0]['entries'][0]['senses'][0]['definitions'][0]
     except (KeyError, TypeError):
         print('Invalid dictionary response', file=sys.stderr)
         print(json.dumps(res_json, indent=4), file=sys.stderr)
-        return None
+        return False
     
     try:
-        audio = res_json['results'][0]['lexicalEntries'][0]['pronunciations'][0]['audioFile']
+        word_model.audio = \
+            res_json['results'][0]['lexicalEntries'][0]['pronunciations'][0]['audioFile']
     except (KeyError, TypeError):
-        audio = None
+        word_model.audio = None
 
-    if audio is not None:
-        definition = '<audio src="%s">%s</audio>, ' % (audio, word) + definition
-    else:
-        definition = '%s, ' % word + definition
-    
-    return definition
+    return True
 
 
 @app.errorhandler(404)
