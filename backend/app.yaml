@@ -7,3 +7,6 @@ threadsafe: true
 handlers:
 - url: /.*
   script: main.app
+  
+env_variables:
+  CONFIG_MODEL_ID: 'default'
