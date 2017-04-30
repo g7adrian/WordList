@@ -2,6 +2,7 @@
 from __future__ import print_function # In python 2.7
 import json
 import os
+import random
 import sys
 import urllib
 import urllib2
@@ -32,9 +33,10 @@ setup_app(app)
 
 class Word(ndb.Model):
     """A word to be learned. The key name is the word itself"""
-    times_defined = ndb.IntegerProperty()
-    learned = ndb.BooleanProperty()
+    word = ndb.StringProperty(indexed=False)
     definition = ndb.StringProperty(indexed=False)
+    practice_count = ndb.IntegerProperty()
+    learned = ndb.BooleanProperty()
 
 
 @app.route('/apiai', methods=['POST'])
@@ -87,20 +89,26 @@ def process_action(action, params):
         word_id = normalize_word(word)
         word_model = ndb.Key('Word', word_id).get()
         if word_model is not None:
-            word_model.times_defined += 1
+            word_model.practice_count += 1
             word_model.put()
             return '%s, %s' % (word, word_model.definition)
         
         word_model = Word()
-        word_model.leaned = False
+        word_model.learned = False
+        word_model.word = word
         word_model.key = ndb.Key('Word', word_id)
         if not get_word_definition(word_model):
             return 'I do not know this word'
         else:
-            word_model.times_defined = 1
+            word_model.practice_count = 1
             word_model.put()
             return '%s, %s' % (word, word_model.definition)
     
+    elif action == 'practice':
+        keys = Word.query().filter(Word.learned == False).fetch(keys_only=True)
+        selected_word_key = random.sample(keys, 1)[0]
+        return 'How about the word %s?' % selected_word_key.get().word
+        
     return 'I did not get that'
 
 
