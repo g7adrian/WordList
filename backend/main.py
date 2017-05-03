@@ -1,5 +1,6 @@
 """`main` is the top level module for your Flask application."""
 from __future__ import print_function # In python 2.7
+import cloudstorage
 import json
 import os
 import random
@@ -17,6 +18,7 @@ class WordListConfig(ndb.Model):
     oxford_url_pattern = ndb.StringProperty(indexed=False)
     oxford_app_id = ndb.StringProperty(indexed=False)
     oxford_app_key = ndb.StringProperty(indexed=False)
+    cloud_storage_bucket = ndb.StringProperty(indexed=False)
 
 
 def setup_app(app):
@@ -39,6 +41,7 @@ class Word(ndb.Model):
     learned = ndb.BooleanProperty()
     creation_time = ndb.DateTimeProperty(auto_now_add=True)
     last_update_time = ndb.DateTimeProperty(auto_now=True)
+    audio = ndb.StringProperty()
 
 
 @app.route('/apiai', methods=['POST'])
@@ -62,12 +65,17 @@ def apiai_webhook():
 def make_webhook_result(req):
     action = req.get('result').get('action')
     parameters = req.get('result').get('parameters')    
-    speech = process_action(action, parameters)
+    (speech, display) = process_action(action, parameters)
 
     return {
         'speech': speech,
-        'displayText': speech,
-        #"data": {},
+        'displayText': display,
+        'data': {
+            'google': {
+                'expect_user_response': True,
+                'is_ssml': True
+            }
+        },
         # "contextOut": [],
         'source': 'apiai-wordlist'
     }
@@ -87,32 +95,51 @@ def process_action(action, params):
     if action == 'define_word':
         word = params.get('word')
         if word is None:
-            return 'I do not know this word'
+            return make_simple_reply('I do not know this word')
         word_id = normalize_word(word)
         word_model = ndb.Key('Word', word_id).get()
         if word_model is not None:
             word_model.practice_count += 1
             word_model.learned = False
             word_model.put()
-            return '%s, %s' % (word, word_model.definition)
+            return generate_definition_reply(word_model)
         
         word_model = Word()
         word_model.learned = False
         word_model.word = word
         word_model.key = ndb.Key('Word', word_id)
         if not get_word_definition(word_model):
-            return 'I do not know this word'
+            return make_simple_reply('I do not know this word')
         else:
             word_model.practice_count = 1
             word_model.put()
-            return '%s, %s' % (word, word_model.definition)
+            return generate_definition_reply(word_model)
     
     elif action == 'practice':
         keys = Word.query().filter(Word.learned == False).fetch(keys_only=True)
         selected_word_key = random.sample(keys, 1)[0]
-        return 'How about the word %s?' % selected_word_key.get().word
+        return make_simple_reply(
+            'How about the word %s?' % selected_word_key.get().word)
         
-    return 'I did not get that'
+    return make_simple_reply('I did not get that')
+
+
+def make_simple_reply(text):
+    return ('<speak>%s</speak>' % text, text)
+
+
+def generate_definition_reply(word_model):
+    a_tag = word_model.word
+    if word_model.audio:
+        a_tag = '<audio src="https://storage.googleapis.com/%s/%s">%s</audio>' % (
+            app.wordlist_config.cloud_storage_bucket,
+            word_model.audio,
+            word_model.word)
+    
+    return (
+        '<speak>%s, %s</speak>' % (a_tag, word_model.definition),
+        '%s, %s' % (word_model.word, word_model.definition)
+    )
 
 
 def get_word_definition(word_model):
@@ -141,9 +168,27 @@ def get_word_definition(word_model):
         return False
     
     try:
-        word_model.audio = \
-            res_json['results'][0]['lexicalEntries'][0]['pronunciations'][0]['audioFile']
-    except (KeyError, TypeError):
+        pronunciations = res_json['results'][0]['lexicalEntries'][0]['pronunciations']
+        audio_url = None
+        for p in pronunciations:
+            if 'audioFile' in p:
+                audio_url = p['audioFile']
+                break
+        if audio_url is None:
+            return True
+
+        # download mp3 file
+        audio_file = urllib2.urlopen(audio_url).read()
+        # upload it to Google cloud
+        gc_audio_file_name = 'audio/%s.mp3' % word_model.key.string_id()
+        gc_audio_file_object = cloudstorage.open(
+            '/' + app.wordlist_config.cloud_storage_bucket +
+            '/' + gc_audio_file_name, 'w')
+        gc_audio_file_object.write(audio_file)
+        gc_audio_file_object.close()
+        word_model.audio = gc_audio_file_name
+        
+    except (KeyError, TypeError, urllib2.URLError, cloudstorage.Error):
         word_model.audio = None
 
     return True
