@@ -37,6 +37,8 @@ class Word(ndb.Model):
     definition = ndb.StringProperty(indexed=False)
     practice_count = ndb.IntegerProperty()
     learned = ndb.BooleanProperty()
+    creation_time = ndb.DateTimeProperty(auto_now_add=True)
+    last_update_time = ndb.DateTimeProperty(auto_now=True)
 
 
 @app.route('/apiai', methods=['POST'])
@@ -90,6 +92,7 @@ def process_action(action, params):
         word_model = ndb.Key('Word', word_id).get()
         if word_model is not None:
             word_model.practice_count += 1
+            word_model.learned = False
             word_model.put()
             return '%s, %s' % (word, word_model.definition)
         
