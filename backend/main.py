@@ -64,19 +64,21 @@ def apiai_webhook():
 
 def make_webhook_result(req):
     action = req.get('result').get('action')
-    parameters = req.get('result').get('parameters')    
-    (speech, display) = process_action(action, parameters)
+    parameters = req.get('result').get('parameters')
+    context = dict([(c['name'], c['parameters'])
+                    for c in req.get('result').get('contexts')])
+    reply = process_action(action, parameters, context)
 
     return {
-        'speech': speech,
-        'displayText': display,
+        'speech': reply['speech'],
+        'displayText': reply['text'],
         'data': {
             'google': {
                 'expect_user_response': True,
                 'is_ssml': True
             }
         },
-        # "contextOut": [],
+        "contextOut": reply.get('context', []),
         'source': 'apiai-wordlist'
     }
 
@@ -89,7 +91,7 @@ def normalize_word(word):
     return word
 
 
-def process_action(action, params):
+def process_action(action, params, context):
     """Processes an action with the parameters dictionary, and returns
     the speech reply to be spoken to the user."""
     if action == 'define_word':
@@ -118,14 +120,76 @@ def process_action(action, params):
     elif action == 'practice':
         keys = Word.query().filter(Word.learned == False).fetch(keys_only=True)
         selected_word_key = random.sample(keys, 1)[0]
-        return make_simple_reply(
-            'How about the word %s?' % selected_word_key.get().word)
+        reply = make_simple_reply(
+            'How about %s! Do you remember it?' % selected_word_key.get().word)
+        reply['context'] = [{
+            'name': 'practice',
+            'lifespan': 2,
+            'parameters': {'word_id': selected_word_key.id()}
+        }]
+        return reply
+    
+    elif action == 'practice_known':
+        # User knows this word. Mark it as learned
+        word_id = context.get('practice', {}).get('word_id', None)
+        reset_context = [{
+            'name': 'practice',
+            'lifespan': 0,
+            'parameters': {'word_id': word_id}
+        }]
+
+        if word_id is None:
+            reply = make_simple_reply('I am afraid I do not know this word')
+            reply['context'] = reset_context
+            return reply
+
+        word_model = ndb.Key('Word', word_id).get()
+        if word_model is None:
+            reply = make_simple_reply('I am afraid I do not know this word')
+            reply['context'] = reset_context
+            return reply
+
+        word_model.learned = True
+        word_model.put()
+        reply = make_simple_reply('OK, I will not ask this word again')
+        reply['context'] = reset_context
+        return reply
+    
+    elif action == 'practice_unknown':
+        # User does not know this word. Return its definition
+        word_id = context.get('practice', {}).get('word_id', None)
+        reset_context = [{
+            'name': 'practice',
+            'lifespan': 0,
+            'parameters': {'word_id': word_id}
+        }]
+
+        if word_id is None:
+            reply = make_simple_reply('I do not know this word either, sorry')
+            reply['context'] = reset_context
+            return reply
+
+        word_model = ndb.Key('Word', word_id).get()
+        if word_model is None:
+            reply = make_simple_reply('I do not know this word either, sorry')
+            reply['context'] = reset_context
+            return reply
+
+        word_model.practice_count += 1
+        word_model.learned = False
+        word_model.put()
+        reply = generate_definition_reply(word_model)
+        reply['context'] = reset_context
+        return reply
         
     return make_simple_reply('I did not get that')
 
 
 def make_simple_reply(text):
-    return ('<speak>%s</speak>' % text, text)
+    return {
+        'speech': '<speak>%s</speak>' % text,
+        'text': text
+    }
 
 
 def generate_definition_reply(word_model):
@@ -136,10 +200,10 @@ def generate_definition_reply(word_model):
             word_model.audio,
             word_model.word)
     
-    return (
-        '<speak>%s, %s</speak>' % (a_tag, word_model.definition),
-        '%s, %s' % (word_model.word, word_model.definition)
-    )
+    return {
+        'speech': '<speak>%s, %s</speak>' % (a_tag, word_model.definition),
+        'text': '%s, %s' % (word_model.word, word_model.definition)
+    }
 
 
 def get_word_definition(word_model):
