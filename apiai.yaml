@@ -1,0 +1,167 @@
+{
+  "name": "actionPackages/41970171",
+  "deploymentStatus": {
+    "state": "NEW",
+    "previewEndTime": "2017-05-13T20:24:20.459092Z"
+  },
+  "versionLabel": "API.AI generated package for agent VocabularyBuilder",
+  "agentInfo": {
+    "languageCode": "en-US",
+    "projectId": "wordlist-165804",
+    "invocationNames": [
+      "my dictionary"
+    ],
+    "voiceName": "male_2",
+    "surfaceRequirements": {}
+  },
+  "actions": [
+    {
+      "description": "Default Welcome Intent",
+      "initialTrigger": {
+        "intent": "assistant.intent.action.MAIN",
+        "queryPatterns": []
+      },
+      "inDialogTriggers": [
+        {
+          "intent": "00cf0623-0ad6-42a7-a227-076b77749ef9",
+          "queryPatterns": [
+            {
+              "queryPattern": "Explain the meaning of $SchemaOrg_Text:word"
+            },
+            {
+              "queryPattern": "Explain $SchemaOrg_Text:word"
+            },
+            {
+              "queryPattern": "How do you define $SchemaOrg_Text:word"
+            },
+            {
+              "queryPattern": "What is the definition of $SchemaOrg_Text:word"
+            },
+            {
+              "queryPattern": "What is the meaning of $SchemaOrg_Text:word"
+            },
+            {
+              "queryPattern": "What does $SchemaOrg_Text:word mean"
+            },
+            {
+              "queryPattern": "Define $SchemaOrg_Text:word"
+            }
+          ]
+        },
+        {
+          "intent": "336b7271-ccfe-40ac-94fb-825024a4e9a6",
+          "queryPatterns": [
+            {
+              "queryPattern": "Remind me some  words"
+            },
+            {
+              "queryPattern": "Remind me of a  word"
+            },
+            {
+              "queryPattern": "Remind me an old  word"
+            },
+            {
+              "queryPattern": "Practice some  words  I don\u0027t know"
+            },
+            {
+              "queryPattern": "Practice some  words"
+            },
+            {
+              "queryPattern": "Practice a  word"
+            },
+            {
+              "queryPattern": "Practice"
+            },
+            {
+              "queryPattern": "Give me a  word"
+            },
+            {
+              "queryPattern": "Give me some  words"
+            },
+            {
+              "queryPattern": "Time for some practice"
+            },
+            {
+              "queryPattern": "Tell me a  word  I don\u0027t know"
+            }
+          ]
+        },
+        {
+          "intent": "8f030015-611d-4863-8aae-3c6d6c79cf61",
+          "queryPatterns": [
+            {
+              "queryPattern": "Yeah"
+            },
+            {
+              "queryPattern": "You bet"
+            },
+            {
+              "queryPattern": "Of course"
+            },
+            {
+              "queryPattern": "I remember it"
+            },
+            {
+              "queryPattern": "affirmative"
+            },
+            {
+              "queryPattern": "I know it"
+            },
+            {
+              "queryPattern": "yes"
+            }
+          ]
+        },
+        {
+          "intent": "fa8a3edb-3e64-4f83-8563-db929ea3b187",
+          "queryPatterns": [
+            {
+              "queryPattern": "negative"
+            },
+            {
+              "queryPattern": "what?"
+            },
+            {
+              "queryPattern": "I do not know"
+            },
+            {
+              "queryPattern": "I don\u0027t know"
+            },
+            {
+              "queryPattern": "I don\u0027t remember"
+            },
+            {
+              "queryPattern": "no"
+            }
+          ]
+        },
+        {
+          "intent": "RAW_TEXT",
+          "queryPatterns": [
+            {
+              "queryPattern": "$SchemaOrg_Text:text"
+            }
+          ]
+        },
+        {
+          "intent": "assistant.intent.action.SELECT_RESPONSE",
+          "queryPatterns": [
+            {
+              "queryPattern": "$SELECT_INTENT_TYPE:assistantSelectValue"
+            }
+          ]
+        }
+      ],
+      "httpExecution": {
+        "url": "https://api.api.ai/api/integrations/google?token\u003da0207186b1e84efe99eff343a328a0d2\u0026lang\u003den-US"
+      },
+      "signInRequired": false
+    }
+  ],
+  "customTypes": [
+    {
+      "name": "$SELECT_INTENT_TYPE",
+      "isDynamicDefined": true
+    }
+  ]
+}
